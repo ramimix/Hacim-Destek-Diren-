@@ -1,149 +1,79 @@
-# ==============================================================================
-# CHARTPRIME "SUPPORT & RESISTANCE (HIGH VOLUME BOXES)" TARAYICISI - v2 + TELEGRAM
-# ==============================================================================
-# GitHub Actions ile zamanlanmis olarak calisir, sonuclari Telegram'a gonderir.
-# Ortam degiskenleri (GitHub Secrets uzerinden gelir):
-#   TELEGRAM_BOT_TOKEN
-#   TELEGRAM_CHAT_ID
-# ==============================================================================
-
 import os
+from datetime import datetime
 import numpy as np
 import pandas as pd
-import yfinance as yf
 import requests
-from datetime import datetime
-import warnings
-warnings.filterwarnings("ignore")
+import yfinance as yf
 
-# ------------------------------------------------------------------------------
-# 1) INDIKATOR PARAMETRELERI
-# ------------------------------------------------------------------------------
+# --- Sabit Parametreler ---
 LOOKBACK_PERIOD = 20
-VOL_LEN         = 2
-BOX_WIDTH       = 1.0
-ATR_LEN         = 200
-DATA_PERIOD     = "3y"
-MIN_BARS        = 260
-
-# ------------------------------------------------------------------------------
-# 2) BIST HISSE LISTESI
-# ------------------------------------------------------------------------------
-BIST_TICKERS = [
-    "A1CAP","A1YEN","AAGYO","ACSEL","ADEL","ADESE","ADGYO","AEFES","AFYON","AGESA",
-    "AGHOL","AGROT","AGYO","AHGAZ","AHSGY","AKBNK","AKCNS","AKENR","AKFGY","AKFIS",
-    "AKFYE","AKGRT","AKHAN","AKMGY","AKSA","AKSEN","AKSGY","AKSUE","AKYHO","ALARK",
-    "ALBRK","ALCAR","ALCTL","ALFAS","ALGYO","ALKA","ALKIM","ALKLC","ALTNY","ALVES",
-    "ANELE","ANGEN","ANHYT","ANSGR","ARASE","ARCLK","ARDYZ","ARENA","ARFYE","ARMGD",
-    "ARSAN","ARTMS","ARZUM","ASELS","ASGYO","ASTOR","ASUZU","ATAGY","ATAKP","ATATP",
-    "ATATR","ATEKS","ATLAS","ATSYH","AVGYO","AVHOL","AVOD","AVPGY","AVTUR","AYCES",
-    "AYDEM","AYEN","AYES","AYGAZ","AZTEK","BAGFS","BAHKM","BAKAB","BALAT","BALSU",
-    "BANVT","BARMA","BASCM","BASGZ","BAYRK","BEGYO","BERA","BESLR","BESTE","BETAE",
-    "BEYAZ","BFREN","BIENY","BIGCH","BIGEN","BIGTK","BIMAS","BINBN","BINHO","BIOEN",
-    "BIZIM","BJKAS","BLCYT","BLUME","BMSCH","BMSTL","BNTAS","BOBET","BORLS","BORSK",
-    "BOSSA","BRISA","BRKO","BRKSN","BRKVY","BRLSM","BRMEN","BRSAN","BRYAT","BSOKE",
-    "BTCIM","BUCIM","BULGS","BURCE","BURVA","BVSAN","BYDNR","CANTE","CASA","CATES",
-    "CCOLA","CELHA","CEMAS","CEMTS","CEMZY","CEOEM","CGCAM","CIMSA","CLEBI","CMBTN",
-    "CMENT","CONSE","COSMO","CRDFA","CRFSA","CUSAN","CVKMD","CWENE","DAGI","DAPGM",
-    "DARDL","DCTTR","DENGE","DERHL","DERIM","DESA","DESPC","DEVA","DGATE","DGGYO",
-    "DGNMO","DIRIT","DITAS","DMRGD","DMSAS","DNISI","DOAS","DOCO","DOFER","DOFRB",
-    "DOGUB","DOHOL","DOKTA","DSTKF","DUNYH","DURDO","DURKN","DYOBY","DZGYO","EBEBK",
-    "ECILC","ECOGR","ECZYT","EDATA","EDIP","EFOR","EGEEN","EGEGY","EGEPO","EGGUB",
-    "EGPRO","EGSER","EKDMR","EKGYO","EKIM","EKIZ","EKOS","EKSUN","ELITE","EMKEL",
-    "EMNIS","EMPAE","ENDAE","ENERY","ENJSA","ENKAI","ENPRA","ENSRI","ENTRA","EPLAS",
-    "ERBOS","ERCB","EREGL","ERSU","ESCAR","ESCOM","ESEN","ETILR","ETYAT","EUHOL",
-    "EUKYO","EUPWR","EUREN","EUYO","EYGYO","FADE","FENER","FLAP","FMIZP","FONET",
-    "FORMT","FORTE","FRIGO","FRMPL","FROTO","FZLGY","GARAN","GARFA","GATEG","GEDIK",
-    "GEDZA","GENIL","GENKM","GENTS","GEREL","GESAN","GIPTA","GLBMD","GLCVY","GLRMK",
-    "GLRYH","GLYHO","GMTAS","GOKNR","GOLDA","GOLTS","GOODY","GOZDE","GRNYO","GRSEL",
-    "GRTHO","GSDDE","GSDHO","GSRAY","GUBRF","GUNDG","GWIND","GZNMI","HALKB","HATEK",
-    "HATSN","HDFGS","HEDEF","HEKTS","HKTM","HLGYO","HOROZ","HRKET","HTTBT","HUBVC",
-    "HUNER","HURGZ","ICBCT","ICUGS","IDGYO","IEYHO","IHAAS","IHEVA","IHGZT","IHLAS",
-    "IHLGM","IHYAY","IMASM","INDES","INFO","INGRM","INTEK","INTEM","INVEO","INVES",
-    "ISATR","ISBIR","ISBTR","ISCTR","ISDMR","ISFIN","ISGSY","ISGYO","ISKPL","ISKUR",
-    "ISMEN","ISSEN","ISYAT","IZENR","IZFAS","IZINV","IZMDC","JANTS","KAPLM","KAREL",
-    "KARSN","KARTN","KATMR","KAYSE","KBORU","KCAER","KCHOL","KENT","KERVN","KFEIN",
-    "KGYO","KIMMR","KLGYO","KLKIM","KLMSN","KLNMA","KLRHO","KLSER","KLSYN","KLYPV",
-    "KMPUR","KNFRT","KOCMT","KONKA","KONTR","KONYA","KOPOL","KORDS","KOTON","KRDMA",
-    "KRDMB","KRDMD","KRGYO","KRONT","KRPLS","KRSTL","KRTEK","KRVGD","KSTUR","KTLEV",
-    "KTSKR","KUTPO","KUVVA","KUYAS","KZBGY","KZGYO","LIDER","LIDFA","LILAK","LINK",
-    "LKMNH","LMKDC","LOGO","LRSHO","LUKSK","LXGYO","LYDHO","LYDYE","MAALT","MACKO",
-    "MAGEN","MAKIM","MAKTK","MANAS","MARBL","MARKA","MARMR","MARTI","MAVI","MCARD",
-    "MEDTR","MEGAP","MEGMT","MEKAG","MEPET","MERCN","MERIT","MERKO","METRO","MEYSU",
-    "MGROS","MHRGY","MIATK","MMCAS","MNDRS","MNDTR","MOBTL","MOGAN","MOPAS","MPARK",
-    "MRGYO","MRSHL","MSGYO","MTRKS","MTRYO","MZHLD","NATEN","NETAS","NETCD","NIBAS",
-    "NTGAZ","NTHOL","NUGYO","NUHCM","OBAMS","OBASE","ODAS","ODINE","OFSYM","ONCSM",
-    "ONRYT","ORCAY","ORGE","ORMA","ORZAX","OSMEN","OSTIM","OTKAR","OTTO","OYAKC",
-    "OYAYO","OYLUM","OYYAT","OZATD","OZGYO","OZKGY","OZRDN","OZSUB","OZYSR","PAGYO",
-    "PAHOL","PAMEL","PAPIL","PARSN","PASEU","PATEK","PCILT","PEKGY","PENGD","PENTA",
-    "PETKM","PETUN","PGSUS","PINSU","PKART","PKENT","PLTUR","PNLSN","PNSUT","POLHO",
-    "POLTK","PRDGS","PRKAB","PRKME","PRZMA","PSDTC","PSGYO","QNBFK","QNBTR","QUAGR",
-    "RALYH","RAYSG","REEDR","RGYAS","RNPOL","RODRG","RTALB","RUBNS","RUZYE","RYGYO",
-    "RYSAS","SAFKR","SAHOL","SAMAT","SANEL","SANFM","SANKO","SARKY","SASA","SAYAS",
-    "SDTTR","SEGMN","SEGYO","SEKFK","SEKUR","SELEC","SELVA","SERNT","SEYKM","SILVR",
-    "SISE","SKBNK","SKTAS","SKYLP","SKYMD","SMART","SMRTG","SMRVA","SNGYO","SNICA",
-    "SNPAM","SODSN","SOHOE","SOKE","SOKM","SONME","SRVGY","SUMAS","SUNTK","SURGY",
-    "SUWEN","SVGYO","TABGD","TARKM","TATEN","TATGD","TAVHL","TBORG","TCELL","TCKRC",
-    "TDGYO","TEHOL","TEKTU","TERA","TEZOL","TGSAS","THYAO","TKFEN","TKNSA","TLMAN",
-    "TMPOL","TMSN","TNZTP","TOASO","TRALT","TRCAS","TRENJ","TRGYO","TRHOL","TRILC",
-    "TRMET","TSGYO","TSKB","TSPOR","TTKOM","TTRAK","TUCLK","TUKAS","TUPRS","TUREX",
-    "TURGG","TURSG","UCAYM","UFUK","ULAS","ULKER","ULUFA","ULUSE","ULUUN","UMPAS",
-    "UNLU","USAK","VAKBN","VAKFA","VAKFN","VAKKO","VANGD","VBTYZ","VERTU","VERUS",
-    "VESBE","VESTL","VKFYO","VKGYO","VKING","VRGYO","VSNMD","YAPRK","YATAS","YAYLA",
-    "YBTAS","YEOTK","YESIL","YGGYO","YIGIT","YKBNK","YKSLN","YONGA","YUNSA","YYAPI",
-    "YYLGD","ZEDUR","ZERGY","ZGYO","ZOREN","ZRGYO",
-]
-
-def get_symbols():
-    return [t.strip().upper() + ".IS" for t in BIST_TICKERS]
-
-# ------------------------------------------------------------------------------
-# 3) MATEMATIKSEL FONKSIYONLAR
-# ------------------------------------------------------------------------------
-def rma_atr(df, length=200):
-    high, low, close = df["High"], df["Low"], df["Close"]
-    prev_close = close.shift(1)
-    tr = pd.concat([(high - low), (high - prev_close).abs(), (low - prev_close).abs()], axis=1).max(axis=1)
-    return tr.ewm(alpha=1 / length, adjust=False, min_periods=length).mean().values
+ATR_LEN = 14
+BOX_WIDTH = 1.5
+VOL_LEN = 20
+MIN_BARS = 100
 
 
-def get_delta_volume(df):
-    direction = np.sign(df["Close"] - df["Open"]).values
-    last_dir = 1
-    out = np.empty(len(direction))
-    for i in range(len(direction)):
-        if direction[i] > 0:
-            last_dir = 1
-        elif direction[i] < 0:
-            last_dir = -1
-        out[i] = last_dir
-    return df["Volume"].values * out
+def rma_atr(df, length=14):
+    """
+    Pine Script'in ta.rma ve ta.atr mantığına sadık kalınarak
+    RMA (Running Moving Average) bazlı ATR hesabı yapar.
+    """
+    high = df["High"]
+    low = df["Low"]
+    close = df["Close"]
+
+    tr1 = high - low
+    tr2 = (high - close.shift(1)).abs()
+    tr3 = (low - close.shift(1)).abs()
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+
+    rma = tr.ewm(alpha=1 / length, min_periods=length, adjust=False).mean()
+    return rma.values
 
 
-def calculate_pivots(src, lookback):
-    n = len(src)
+def calculate_pivots(close, lookback=20):
+    """
+    Belirli bir lookback periyodundaki tepe ve dip pivot noktalarını hesaplar.
+    """
+    n = len(close)
     piv_highs = np.full(n, np.nan)
     piv_lows = np.full(n, np.nan)
-    for i in range(lookback * 2, n):
-        window = src[i - (lookback * 2): i + 1]
-        center = src[i - lookback]
-        if center == np.max(window) and np.sum(window == center) == 1:
-            piv_highs[i] = center
-        if center == np.min(window) and np.sum(window == center) == 1:
-            piv_lows[i] = center
+
+    for i in range(lookback, n - lookback):
+        is_high = True
+        is_low = True
+        for j in range(1, lookback + 1):
+            if close[i] <= close[i - j] or close[i] <= close[i + j]:
+                is_high = False
+            if close[i] >= close[i - j] or close[i] >= close[i + j]:
+                is_low = False
+
+        if is_high:
+            piv_highs[i] = close[i]
+        if is_low:
+            piv_lows[i] = close[i]
+
     return piv_highs, piv_lows
 
 
 def drop_incomplete_today(df):
-    if len(df) and df.index[-1].date() == datetime.now().date():
-        df = df.iloc[:-1]
+    """
+    Türkiye saatiyle borsa kapanışından (TSİ 18:00 / UTC 15:00) önce tarama yapılıyorsa
+    günlük bar henüz tamamlanmadığı için son barı eler. Kapanıştan sonra ise barı korur.
+    """
+    if len(df):
+        now_utc = datetime.utcnow()
+        if now_utc.hour < 15:  # UTC 15:00 öncesi seans açık demektir
+            if df.index[-1].date() == now_utc.date():
+                df = df.iloc[:-1]
     return df
 
 
-# ------------------------------------------------------------------------------
-# 4) ANA INDIKATOR MANTIGI & SINYAL KONTROLU
-# ------------------------------------------------------------------------------
 def check_chartprime_sr(df: pd.DataFrame):
+    """
+    ChartPrime Support & Resistance indikatörünün hacim onaylı
+    destek/direnç mantığını simüle eden ana tarama motoru.
+    """
     if df is None or len(df) < MIN_BARS:
         return False, {}
 
@@ -155,16 +85,19 @@ def check_chartprime_sr(df: pd.DataFrame):
     high = df["High"].values
     low = df["Low"].values
     close = df["Close"].values
+    volume = df["Volume"].values
 
-    vol = get_delta_volume(df)
-    vol_25 = vol / 2.5
-    vol_hi = pd.Series(vol_25).rolling(VOL_LEN, min_periods=1).max().values
-    vol_lo = pd.Series(vol_25).rolling(VOL_LEN, min_periods=1).min().values
-
+    # Kutu genişliği için ATR hesabı
     atr = rma_atr(df, ATR_LEN)
     withd = atr * BOX_WIDTH
 
+    # Pivot tespiti (20 bar geride kesinleşen seviyeleri döner)
     piv_highs, piv_lows = calculate_pivots(close, LOOKBACK_PERIOD)
+
+    # Düzeltilmiş Hacim Filtresi (Mutlak hacim üzerinden rolling eşik değeri)
+    vol_threshold = (
+        pd.Series(volume).rolling(VOL_LEN, min_periods=1).max().values / 2.5
+    )
 
     supportLevel = np.nan
     supportLevel_1 = np.nan
@@ -177,24 +110,43 @@ def check_chartprime_sr(df: pd.DataFrame):
     last_signal = {}
 
     for i in range(1, n):
-        if not np.isnan(piv_lows[i]) and vol[i] > vol_hi[i]:
-            supportLevel = piv_lows[i]
-            supportLevel_1 = supportLevel - withd[i]
+        pivot_idx = i - LOOKBACK_PERIOD
 
-        if not np.isnan(piv_highs[i]) and vol[i] < vol_lo[i]:
-            resistanceLevel = piv_highs[i]
-            resistanceLevel_1 = resistanceLevel + withd[i]
+        # Destek Seviyesi Doğrulaması (Geriye dönük pivot mumunun hacmine bakıyoruz)
+        if pivot_idx >= 0 and not np.isnan(piv_lows[i]):
+            is_green = close[pivot_idx] > df["Open"].values[pivot_idx]
+            if is_green and volume[pivot_idx] > vol_threshold[pivot_idx]:
+                supportLevel = piv_lows[i]
+                supportLevel_1 = supportLevel - withd[i]
+
+        # Direnç Seviyesi Doğrulaması (Geriye dönük pivot mumunun hacmine bakıyoruz)
+        if pivot_idx >= 0 and not np.isnan(piv_highs[i]):
+            is_red = close[pivot_idx] < df["Open"].values[pivot_idx]
+            if is_red and volume[pivot_idx] > vol_threshold[pivot_idx]:
+                resistanceLevel = piv_highs[i]
+                resistanceLevel_1 = resistanceLevel + withd[i]
 
         brekout_res = False
         res_holds = False
         sup_holds = False
 
-        if not np.isnan(prev_resistanceLevel_1) and not np.isnan(resistanceLevel_1):
-            brekout_res = (low[i - 1] < prev_resistanceLevel_1) and (low[i] > resistanceLevel_1)
-        if not np.isnan(prev_resistanceLevel) and not np.isnan(resistanceLevel):
-            res_holds = (high[i - 1] > prev_resistanceLevel) and (high[i] < resistanceLevel)
+        if (
+            not np.isnan(prev_resistanceLevel_1)
+            and not np.isnan(resistanceLevel_1)
+        ):
+            brekout_res = (low[i - 1] < prev_resistanceLevel_1) and (
+                low[i] > resistanceLevel_1
+            )
+        if not np.isnan(prev_resistanceLevel) and not np.isnan(
+            resistanceLevel
+        ):
+            res_holds = (high[i - 1] > prev_resistanceLevel) and (
+                high[i] < resistanceLevel
+            )
         if not np.isnan(prev_supportLevel) and not np.isnan(supportLevel):
-            sup_holds = (low[i - 1] < prev_supportLevel) and (low[i] > supportLevel)
+            sup_holds = (low[i - 1] < prev_supportLevel) and (
+                low[i] > supportLevel
+            )
 
         prev_res_is_sup = res_is_sup
         if brekout_res:
@@ -202,21 +154,30 @@ def check_chartprime_sr(df: pd.DataFrame):
         elif res_holds:
             res_is_sup = False
 
+        # Sadece en son bar için sinyal kontrolü yapıyoruz
         if i == n - 1:
             signal_type = None
             if sup_holds:
-                signal_type = "Destekten Donus"
+                signal_type = "Destekten Dönüş (Bounce)"
             elif brekout_res and prev_res_is_sup:
-                signal_type = "Kirilan Direncten Donus (Retest)"
+                signal_type = "Kırılan Dirençten Dönüş (Retest)"
             elif brekout_res and not prev_res_is_sup:
-                signal_type = "Taze Direnc Kirilimi"
+                signal_type = "Taze Direnç Kırılımı (Breakout)"
 
             if signal_type:
-                seviye = supportLevel if "Destek" in signal_type else resistanceLevel_1
+                seviye = (
+                    supportLevel
+                    if "Destek" in signal_type
+                    else resistanceLevel_1
+                )
                 last_signal = {
                     "tarih": str(df.index[i].date()),
-                    "kapanis": round(float(close[i]), 4),
-                    "seviye": round(float(seviye), 4) if not np.isnan(seviye) else None,
+                    "kapanis": round(float(close[i]), 2),
+                    "seviye": (
+                        round(float(seviye), 2)
+                        if not np.isnan(seviye)
+                        else None
+                    ),
                     "sinyal_tipi": signal_type,
                 }
 
@@ -229,83 +190,79 @@ def check_chartprime_sr(df: pd.DataFrame):
     return False, {}
 
 
-# ------------------------------------------------------------------------------
-# 5) TELEGRAM GONDERIM
-# ------------------------------------------------------------------------------
-def send_telegram(text):
-    token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
-    if not token or not chat_id:
-        print("UYARI: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID tanimli degil, mesaj gonderilmiyor.")
-        print(text)
+def send_telegram_message(token, chat_id, message):
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {"chat_id": chat_id, "text": message, "parse_mode": "HTML"}
+    try:
+        response = requests.post(url, json=payload)
+        return response.status_code == 200
+    except Exception as e:
+        print(f"Telegram API bağlantı hatası: {e}")
+        return False
+
+
+def main():
+    telegram_token = os.environ.get("TELEGRAM_TOKEN")
+    telegram_chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+
+    if not telegram_token or not telegram_chat_id:
+        print("Hata: Telegram token veya chat id çevre değişkeni eksik!")
         return
 
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    # Telegram mesaj limiti ~4096 karakter, uzun mesajlari parcala
-    max_len = 3500
-    chunks = [text[i:i + max_len] for i in range(0, len(text), max_len)] or [text]
-    for chunk in chunks:
+    # Tarama yapılacak BIST Listesi (Dilediğin gibi genişletebilirsin)
+    bist_tickers = [
+        "THYAO.IS",
+        "ASELS.IS",
+        "EREGL.IS",
+        "TUPRS.IS",
+        "KCHOL.IS",
+        "SAHOL.IS",
+        "AKBNK.IS",
+        "GARAN.IS",
+        "SISE.IS",
+        "BIMAS.IS",
+        "YKBNK.IS",
+        "ISCTR.IS",
+        "SASA.IS",
+        "HEKTS.IS",
+        "PGSUS.IS",
+        "EKGYO.IS",
+        "PETKM.IS",
+        "TOASO.IS",
+        "FROTO.IS",
+        "ARCLK.IS",
+    ]
+
+    signals_sent = 0
+    for ticker in bist_tickers:
+        print(f"-> {ticker} taranıyor...")
         try:
-            r = requests.post(url, data={"chat_id": chat_id, "text": chunk}, timeout=20)
-            if r.status_code != 200:
-                print(f"Telegram gonderim hatasi: {r.text}")
-        except Exception as e:
-            print(f"Telegram gonderim istisnasi: {e}")
-
-
-# ------------------------------------------------------------------------------
-# 6) TOPLU BIST TARAMASI
-# ------------------------------------------------------------------------------
-def scan_chartprime_bist():
-    symbols = get_symbols()
-    results = []
-
-    print(f"Toplam {len(symbols)} hisse indiriliyor...")
-    data = yf.download(symbols, period=DATA_PERIOD, interval="1d",
-                        threads=True, progress=True, auto_adjust=False)
-
-    for sym in symbols:
-        try:
-            if sym not in data["Close"].columns:
+            df = yf.download(ticker, period="1y", interval="1d", progress=False)
+            if df.empty:
                 continue
-            df = pd.DataFrame({
-                "Open": data["Open"][sym],
-                "High": data["High"][sym],
-                "Low": data["Low"][sym],
-                "Close": data["Close"][sym],
-                "Volume": data["Volume"][sym],
-            }).dropna()
 
-            is_signal, detail = check_chartprime_sr(df)
-            if is_signal:
-                results.append({
-                    "Hisse": sym.replace(".IS", ""),
-                    "Tarih": detail["tarih"],
-                    "Kapanis": detail["kapanis"],
-                    "Seviye": detail["seviye"],
-                    "Sinyal": detail["sinyal_tipi"],
-                })
-        except Exception:
-            continue
+            has_signal, signal_data = check_chartprime_sr(df)
+            if has_signal:
+                hisse_adi = ticker.replace(".IS", "")
+                emoji = "🟢" if "Destek" in signal_data["sinyal_tipi"] else "🔴"
 
-    return pd.DataFrame(results)
+                mesaj = (
+                    f"⚠️ <b>SİNYAL TESPİT EDİLDİ</b> {emoji}\n\n"
+                    f"📈 <b>Hisse:</b> #{hisse_adi}\n"
+                    f"📅 <b>Tarih:</b> {signal_data['tarih']}\n"
+                    f"⚡ <b>Sinyal Tipi:</b> {signal_data['sinyal_tipi']}\n"
+                    f"💵 <b>Kapanış Fiyatı:</b> {signal_data['kapanis']} TL\n"
+                    f"🎯 <b>Referans Seviye:</b> {signal_data['seviye']} TL"
+                )
+
+                send_telegram_message(telegram_token, telegram_chat_id, mesaj)
+                signals_sent += 1
+
+        except Exception as e:
+            print(f"Hata ({ticker}): {e}")
+
+    print(f"Tarama başarıyla bitti. Gönderilen sinyal: {signals_sent}")
 
 
 if __name__ == "__main__":
-    df_result = scan_chartprime_bist()
-
-    today_str = datetime.now().strftime("%d.%m.%Y")
-    if df_result.empty:
-        msg = f"📊 BIST ChartPrime Taramasi ({today_str})\n\nBugun alim seviyesinde hisse bulunamadi."
-    else:
-        df_result = df_result.sort_values(by=["Sinyal", "Hisse"])
-        lines = [f"📊 BIST ChartPrime Taramasi ({today_str})",
-                 f"{len(df_result)} hisse sinyal verdi:\n"]
-        for _, row in df_result.iterrows():
-            lines.append(
-                f"• {row['Hisse']} | {row['Sinyal']} | Kapanis: {row['Kapanis']} | Seviye: {row['Seviye']}"
-            )
-        msg = "\n".join(lines)
-
-    print(msg)
-    send_telegram(msg)
+    main()
